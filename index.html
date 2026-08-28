@@ -45,8 +45,34 @@ h1{font-family:Georgia,serif;font-size:clamp(1.9rem,8vw,3.3rem);margin:.3rem 0 .
 .choice{min-height:64px;text-align:left;border:1px solid var(--line);border-radius:15px;padding:12px 14px;background:rgba(15,19,28,.94);color:#fff;transition:transform .16s,border-color .16s}
 .choice:active{transform:scale(.985)} .choice strong{display:block;font-size:1rem;margin-bottom:4px} .choice span{display:block;color:var(--muted);line-height:1.35;font-size:.87rem}
 @media(min-width:760px){.choices{grid-template-columns:1fr 1fr}}
-.overlay{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(2,4,9,.88);backdrop-filter:blur(10px)}
-.overlay.show{display:flex} .overlayCard{width:min(700px,100%);background:rgba(7,9,14,.96);border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 25px 80px #000}
+.overlay{
+position:fixed;inset:0;z-index:30;display:none;
+overflow-y:auto;overflow-x:hidden;
+-webkit-overflow-scrolling:touch;
+overscroll-behavior-y:contain;
+touch-action:pan-y;
+padding:max(18px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));
+background:rgba(2,4,9,.88);backdrop-filter:blur(10px)
+}
+.overlay.show{display:block}
+.overlayCard{
+width:min(700px,100%);
+margin:0 auto;
+background:rgba(7,9,14,.96);
+border:1px solid var(--line);
+border-radius:20px;
+padding:22px;
+box-shadow:0 25px 80px #000
+}
+@supports(height:100dvh){
+ .overlay{min-height:100dvh}
+}
+@media(max-width:820px){
+ .overlay{padding-top:max(12px,env(safe-area-inset-top));padding-left:12px;padding-right:12px}
+ .overlayCard{margin:0 auto max(20px,env(safe-area-inset-bottom));border-radius:18px}
+ #sideQuest .overlayCard{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+ .continue{position:relative;z-index:2}
+}
 .overlayCard h2{font-family:Georgia,serif;font-size:2rem;margin:.2rem 0 .8rem} .overlayCard p{white-space:pre-line;line-height:1.65}
 .continue{width:100%;min-height:58px;margin-top:12px;border-radius:14px;border:1px solid var(--line);background:#171c28;color:white;font-weight:800}
 #intro{position:fixed;inset:0;z-index:50;background:#02040a;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}
@@ -138,7 +164,7 @@ function badChoiceBurst(scene,choice){if(!scene)return;const id=scene.id;
 function isBadChoice(c){const d=c.delta||{};return ["memory","corner","fatalMaybe"].includes(c.kind)||(d.loop||0)>0||(d.dread||0)>1}
 function adjust(delta={}){for(const [k,v] of Object.entries(delta))state.stats[k]=(state.stats[k]||0)+v}
 function render(){const s=SCENES[state.i];setPhoto(s.image);$("time").textContent=s.time;$("title").textContent=s.title;$("story").textContent=s.text;$("footer").textContent=s.footer;const box=$("choices");box.innerHTML="";s.choices.forEach(c=>{const b=document.createElement("button");b.className="choice";b.innerHTML=`<strong>${c.label}</strong><span>${c.desc}</span>`;b.onclick=()=>choose(c);box.appendChild(b)});atmosphere(s);window.scrollTo({top:0,behavior:"smooth"})}
-function showResult(title,text,tag="THE NIGHT MOVES"){return new Promise(resolve=>{$("resultTag").textContent=tag;$("resultTitle").textContent=title;$("resultText").textContent=text;$("result").classList.add("show");$("resultBtn").onclick=()=>{$("result").classList.remove("show");resolve()}})}
+function showResult(title,text,tag="THE NIGHT MOVES"){return new Promise(resolve=>{$("resultTag").textContent=tag;$("resultTitle").textContent=title;$("resultText").textContent=text;$("result").classList.add("show");$("result").scrollTop=0;$("resultBtn").onclick=()=>{$("result").classList.remove("show");resolve()}})}
 async function memoryBlur(c){await showResult("Something feels familiar",c.result,"MEMORY BLUR");state.i=c.memoryTarget;render()}
 async function corner(c){await showResult("You put yourself in a corner",c.result,"NO EASY EXIT");adjust({awareness:1});if(state.stats.dread>8&&state.stats.loop>3){die("You keep choosing smaller and smaller places until the night finally finds one you cannot leave.");return}advance()}
 function advance(){if(state.i<SCENES.length-1){const t=TRANSITIONS[state.i];state.i++;if(t)showResult("Keep moving",t,"BETWEEN MOMENTS").then(render);else render()}}
@@ -150,9 +176,9 @@ if(c.kind==="corner"){await corner(c);return}
 if(c.kind==="fatalMaybe"){if(c.requires&&!state.flags.has(c.requires)){die(c.death);return}await showResult("The water fights back","You remember the dark channel just in time and break sideways out of the pull. You survive, but only because something earlier taught you what not to do.","YOU ALMOST LOST IT");advance();return}
 if(c.requires&&!state.flags.has(c.requires)){await showResult("You are missing something","The choice feels right, but the night does not open for it. You are forced back into the scene until you notice what you missed.","THE PATH DOES NOT OPEN");adjust({loop:1,dread:1});render();return}
 await showResult(c.label,c.result,"CONSEQUENCE");advance()}
-function openColonel(){setPhoto(COLONEL.image);clearAtmos();$("fog").style.opacity=".35";$("sideTitle").textContent=COLONEL.title;$("sideText").textContent=COLONEL.text;const box=$("sideChoices");box.innerHTML="";COLONEL.choices.forEach(c=>{const b=document.createElement("button");b.className="choice";b.innerHTML=`<strong>${c.label}</strong><span>${c.desc}</span>`;b.onclick=async()=>{adjust(c.delta);if(c.flag)state.flags.add(c.flag);await showResult(c.label,c.result,"KING CHARLES");$("sideQuest").classList.remove("show");state.i=3;render()};box.appendChild(b)});$("sideQuest").classList.add("show")}
-function die(t){$("deathText").textContent=t;$("death").classList.add("show");scream()}
-function morning(){clearAtmos();$("ending").style.backgroundImage=`url("${img("htd_end01_morning.jpg")}")`;$("ending").style.backgroundPosition=photoPos("htd_end01_morning.jpg");$("endingText").textContent="Morning arrives without ceremony. No thunder. No fog. No voices in the radio. People walk the boardwalk carrying coffee and beach bags. A gull steals something from a trash can. The ocean is just the ocean again.\n\nFor the first time all night, nothing happening feels incredible.\n\nThen your phone wakes in your hand.\n\nYour camera roll is open.\n\nThirteen photographs.\n\nYou recognize every place.\n\nYou do not remember taking all of them.";$("ending").classList.add("show")}
+function openColonel(){setPhoto(COLONEL.image);clearAtmos();$("fog").style.opacity=".35";$("sideTitle").textContent=COLONEL.title;$("sideText").textContent=COLONEL.text;const box=$("sideChoices");box.innerHTML="";COLONEL.choices.forEach(c=>{const b=document.createElement("button");b.className="choice";b.innerHTML=`<strong>${c.label}</strong><span>${c.desc}</span>`;b.onclick=async()=>{adjust(c.delta);if(c.flag)state.flags.add(c.flag);await showResult(c.label,c.result,"KING CHARLES");$("sideQuest").classList.remove("show");state.i=3;render()};box.appendChild(b)});$("sideQuest").classList.add("show");$("sideQuest").scrollTop=0}
+function die(t){$("deathText").textContent=t;$("death").classList.add("show");$("death").scrollTop=0;scream()}
+function morning(){clearAtmos();$("ending").style.backgroundImage=`url("${img("htd_end01_morning.jpg")}")`;$("ending").style.backgroundPosition=photoPos("htd_end01_morning.jpg");$("endingText").textContent="Morning arrives without ceremony. No thunder. No fog. No voices in the radio. People walk the boardwalk carrying coffee and beach bags. A gull steals something from a trash can. The ocean is just the ocean again.\n\nFor the first time all night, nothing happening feels incredible.\n\nThen your phone wakes in your hand.\n\nYour camera roll is open.\n\nThirteen photographs.\n\nYou recognize every place.\n\nYou do not remember taking all of them.";$("ending").classList.add("show");$("ending").scrollTop=0}
 function reset(){state.i=0;state.stats={awareness:0,drift:0,dread:0,loop:0,coast:0};state.flags.clear();state.history=[];["death","ending","result","sideQuest"].forEach(x=>$(x).classList.remove("show"));setPhoto(SCENES[0].image,true);render()}
 $("start").onclick=async()=>{await wakeAudio();$("intro").classList.add("hidden");setPhoto(SCENES[0].image,true);render()};
 $("soundBtn").onclick=async()=>{await wakeAudio();state.sound=!state.sound;$("soundBtn").textContent=state.sound?"🔊":"🔇";if(humGain&&audioCtx)humGain.gain.setTargetAtTime(state.sound?.018:0,audioCtx.currentTime,.03);if(!state.sound)try{speechSynthesis.cancel()}catch(e){}};
